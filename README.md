@@ -1,77 +1,159 @@
-# Habit tracker: API
+# Habit Tracker
 
-Fastify + TypeScript + SQLite rebuild of the retired habit-tracker API.
-Backend only for now; the Next.js UI can be added later as a sibling folder.
+A habit tracker application with a Fastify + TypeScript + SQLite API and a Next.js frontend.
 
+## Project structure
+
+```text
+habit-tracker/
+├── api/                    # Fastify API
+│   ├── src/                # API, business rules, database and validation
+│   ├── tests/              # Unit, API and replay tests
+│   ├── scripts/            # Recording replay script
+│   ├── Dockerfile
+│   └── package.json
+├── ui/                     # Next.js frontend
+│   ├── app/                # Next.js pages and layout
+│   ├── components/         # UI components
+│   ├── lib/                # API client
+│   ├── Dockerfile
+│   ├── package.json
+│   └── pnpm-lock.yaml
+├── package.json            # Root package for running both apps concurrently
+├── docker-compose.yml
+└── README.md
 ```
-api/            the API
-  src/          time.ts, rules.ts (pure) | database.ts, repository.ts (SQL) | validation.ts,
-                serializers.ts, service.ts, app.ts (HTTP) | config.ts, server.ts
-  tests/        unit, API and replay tests (fixtures/reference_recording.jsonl)
-  scripts/      replay.ts: replays the recording against a running server
-docs/RULES.md       every rule found in the recording, with line numbers
-docs/DECISIONS.md   every choice the sources do not settle, and the weak points
-```
 
-## Run it
+## Run the application
 
-### With Docker (preferred)
+### With Docker Compose (recommended)
+
+Requirements: Docker Engine and Docker Compose.
+
+From the project root, run:
 
 ```bash
-docker compose up
+docker compose up --build
 ```
 
-The API listens on <http://localhost:3001>. The database is stored in the `api-data` volume, so data survives
-`docker compose down` and restarts. `docker compose down -v` deletes it.
+The command builds and starts both the API and frontend.
+
+- **Frontend:** http://localhost:3000
+- **API:** http://localhost:3001
+- **API user endpoint:** http://localhost:3001/me
+
+The SQLite database is stored in the `api-data` named volume. Data survives container restarts and `docker compose down`.
+
+To stop the application, press `Ctrl+C` and run:
+
+```bash
+docker compose down
+```
+
+To remove the database volume and all stored data as well:
+
+```bash
+docker compose down -v
+```
 
 ### Without Docker
 
-Needs **Node.js 22.13 or newer** (the built-in `node:sqlite` module). Check with `node -v`.
+Requirements:
+- Node.js 22.13 or newer
+- npm
+- pnpm for the frontend
+
+From the project root, install dependencies and start both the API and the UI concurrently:
 
 ```bash
-cd api && npm install && npm start
+npm install
+npm run dev
 ```
 
-`npm start` compiles the TypeScript and starts the server on port 3001. The database file is created at
-`api/data/habit-tracker.db`.
+Open http://localhost:3000.
 
-| Variable | Default | Meaning |
-| --- | --- | --- |
+The API listens on port `3001`; the frontend listens on port `3000`.
+
+## Configuration
+
+### API
+
+| Variable | Default | Description |
+|---|---|---|
 | `PORT` | `3001` | HTTP port |
-| `HOST` | `0.0.0.0` | Interface to listen on |
-| `DATABASE_PATH` | `data/habit-tracker.db` (`/data/habit-tracker.db` in Docker) | SQLite file; missing folders are created |
+| `HOST` | `0.0.0.0` | Network interface |
+| `DATABASE_PATH` | `data/habit-tracker.db` | SQLite database file |
 
-For development with auto-restart: `npm run dev`.
+In Docker, the database path is `/data/habit-tracker.db`.
 
-## Test it
+### Frontend
+
+The Next.js configuration uses `API_URL` to forward `/api/*` requests to the backend.
+
+- Local development defaults to `http://localhost:3001`.
+- Docker Compose uses `http://api:3001` for communication between containers.
+
+## Evidence it works & Tests
+
+### Replay against a running API
+
+The implementation strictly follows the reference recording. Running the replay script against the API yields a 100% match:
+
+```bash
+$ cd api
+$ npm run replay
+68/68 requests match the recording
+```
+
+**Warning:** replaying the recording resets the database. Do not run it against data you want to keep.
+
+### API tests
+
+From the project root:
 
 ```bash
 cd api
-npm test            # unit + API tests + replay of the recording, in memory
+npm test
 npm run typecheck
+npm run build
 ```
 
-Replay the recording against a **running** server (it resets the data first):
+The test suite covers unit tests, API tests and replay tests using `tests/fixtures/reference_recording.jsonl`.
+
+### Frontend checks
+
+From the project root:
 
 ```bash
-npm run replay                         # http://localhost:3001
-npm run replay -- http://localhost:3001
+cd ui
+pnpm typecheck
+pnpm build
 ```
-
-Expected: `68/68 requests match the recording`.
 
 ## API
 
-Errors are always `{"error": "<message>"}`. Any request may send `X-Now: <ISO 8601 with offset>` to set the
-current time; without it the real clock is used.
+Errors use the following format:
 
-| Method and path | Success | Errors |
-| --- | --- | --- |
-| `POST /quests` | 201 quest | 400 |
-| `GET /quests` | 200 list, newest first | |
-| `POST /quests/:id/complete` | 201 `{completion, me}` (new) / 200 (already completed) | 404 |
-| `GET /completions` | 200 list, newest first, undone ones excluded | |
-| `DELETE /completions/:id` | 204 | 404 unknown or already undone |
-| `GET /me` | 200 | |
-| `PUT /me` `{timezone}` | 200 | 400 invalid IANA zone |
-| `POST /test/reset` | 204, deletes everything | |
+```json
+{"error": "<message>"}
+```
+
+Any request may include an `X-Now` header containing an ISO 8601 timestamp with an offset to override the current time.
+
+| Method | Path | Success |
+|---|---|---|
+| `POST` | `/quests` | `201` — created quest |
+| `GET` | `/quests` | `200` — quests, newest first |
+| `POST` | `/quests/:id/complete` | `201` for a new completion, `200` if already completed |
+| `GET` | `/completions` | `200` — active completions, newest first |
+| `DELETE` | `/completions/:id` | `204` — completion undone |
+| `GET` | `/me` | `200` — user progress |
+| `PUT` | `/me` | `200` — updated timezone |
+| `POST` | `/test/reset` | `204` — reset all data |
+
+Invalid input returns `400`; unknown quests or completions return `404`, as applicable.
+
+## Documentation
+
+- `docs/RULES.md` — rules inferred from the reference recording, with line numbers.
+- `docs/DECISIONS.md` — implementation decisions, unresolved ambiguities, weak points, AI usage notes, and outside observations.

@@ -1,16 +1,37 @@
+
 services:
   api:
     build: ./api
     ports:
       - "3001:3001"
     volumes:
-      - api-data:/data # the SQLite file survives restarts and `docker compose down`
+      - api-data:/data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:3001/me').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:3001/me').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+        ]
       interval: 10s
       timeout: 3s
       retries: 5
+
+  ui:
+    build:
+      context: ./ui
+      args:
+        API_URL: http://api:3001
+    ports:
+      - "3000:3000"
+    environment:
+      API_URL: http://api:3001
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
 
 volumes:
   api-data:

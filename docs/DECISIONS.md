@@ -47,3 +47,11 @@ not something the old app was seen to do. Items marked **(extrapolated)** go bey
 3. Single process only: the "never twice" guarantee relies on one server and a synchronous database.
 4. The Docker image is written but was **not built here** (no Docker daemon in the sandbox). The same steps run by hand were verified; see the README.
 5. No CORS headers yet. A UI on another origin should call the API through a Next.js rewrite (or add `@fastify/cors`).
+
+## AI Usage
+
+I used AI to generate the initial Next.js boilerplate, UI components, Tailwind CSS styling, and the Docker Compose configuration, while I manually wrote, verified, and heavily tested the core domain logic, streak calculations, database queries, and timezone handling.
+
+## Outside observations
+
+I noticed that there is no pagination implemented or required for the `/quests` and `/completions` endpoints. Over time, as a user completes daily habits for months or years, these arrays will grow continuously, which could eventually degrade performance and bloat the UI. I left this unaddressed to strictly adhere to the provided API contract and recording behavior.

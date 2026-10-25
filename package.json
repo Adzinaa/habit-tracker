@@ -1,0 +1,12 @@
+{
+  "name": "habit-tracker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Habit Tracker with Fastify API and Next.js UI",
+  "scripts": {
+    "dev": "concurrently -k -n API,UI \"npm run dev --prefix api\" \"pnpm --dir ui dev\""
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.6"
+  }
+}
